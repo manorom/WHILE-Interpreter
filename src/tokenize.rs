@@ -9,8 +9,8 @@ pub struct TextToken<'a> {
     col: usize
 }
 
-#[derive(Debug)]
-enum TokenKind {
+#[derive(Debug, Clone)]
+pub enum TokenKind {
     TWhile,
     TDo,
     TLoop,
@@ -19,27 +19,30 @@ enum TokenKind {
     TMinus,
     TSemicolon,
     TUnequal,
+    TAssign,
     TVariable(u32),
-    TInteger(u32)
+    TInteger(i32)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token<'a> {
-    kind: TokenKind,
+    pub kind: TokenKind,
     source_text: TextToken<'a>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenizeError<'a> {
     TokenNotRecognized(TextToken<'a>)
 }
 
+#[derive(Clone)]
 struct TextTokenStream<'a> {
     it: Chars<'a>,
     cur_line_num: usize,
     cur_col_num: usize
 }
 
+#[derive(Clone)]
 pub struct TokenStream<'a> {
     it: TextTokenStream<'a>
 }
@@ -113,7 +116,7 @@ impl<'a> Iterator for TextTokenStream<'a> {
                     let mut local_it = self.it.clone();
                     let mut token_size = 0;
                     while local_it.next().map_or(false, |ch| match ch {
-                            ' ' | '\t' | '\n' | '!' | ':' => false,
+                            ' ' | '\t' | '\n' | '!' | ':' | ';' => false,
                             _ => true }) {
                         self.it.next();
                         token_size += 1;
@@ -127,7 +130,7 @@ impl<'a> Iterator for TextTokenStream<'a> {
                 }
             }
         }
-        return None
+        None
     }
 }
 
@@ -157,10 +160,11 @@ impl<'a> Iterator for TokenStream<'a> {
                     "-" => Ok(TokenKind::TMinus),
                     ";" => Ok(TokenKind::TSemicolon),
                     "!=" => Ok(TokenKind::TUnequal),
+                    ":=" => Ok(TokenKind::TAssign),
                     text => {
                         let mut ret = Err(TokenizeError::TokenNotRecognized(
                                 text_token.clone()));
-                        if let Ok(i) = text.parse::<u32>() {
+                        if let Ok(i) = text.parse::<i32>() {
                             ret = Ok(TokenKind::TInteger(i))
                         } else {
                             let mut text_iter = text.chars();
@@ -176,7 +180,7 @@ impl<'a> Iterator for TokenStream<'a> {
                 };
 
             Some(kind_res.and_then(|kind| {
-                    Ok(Token { kind: kind,
+                    Ok(Token { kind,
                                source_text: text_token })
                 }))
 
