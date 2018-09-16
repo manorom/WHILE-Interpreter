@@ -14,6 +14,30 @@ pub enum CompileError<'a> {
     UnknownToken { tokenize_error: TokenizeError<'a> }
 }
 
+#[derive(Debug)]
+pub enum Expression<'a> {
+    WhileExpr{ var_idx: u32,
+               comparator: i32,
+               head_tokens: [Token<'a>; 5], // the loop head has exactly 5 tokens
+               end_token: Token<'a>,
+               body: Box<Expression<'a>> },
+    LoopExpr{ var_idx: u32,
+              head_tokens: [Token<'a>; 3],
+              end_token: Token<'a>,
+              body: Box<Expression<'a>> },
+    AssignExpr{ target_var_idx: u32,
+                source_var_idx: u32,
+                modifier: i64,
+                tokens: [Token<'a>; 5],},
+    SequenceExpr{ body: Vec<Expression<'a>>,
+                  seperator_tokens: Vec<Token<'a>> },
+}
+
+type ExpressionResult<'a> = Result<Expression<'a>, CompileError<'a>>;
+
+type PeekableTokenStream<'a> = Peekable<TokenStream<'a>>;
+
+
 impl<'a> fmt::Display for CompileError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -71,29 +95,6 @@ impl<'a> Token<'a> { // Second impl
         }
     }
 }
-
-#[derive(Debug)]
-pub enum Expression<'a> {
-    WhileExpr{ var_idx: u32,
-               comparator: i32,
-               head_tokens: [Token<'a>; 5], // the loop head has exactly 5 tokens
-               end_token: Token<'a>,
-               body: Box<Expression<'a>> },
-    LoopExpr{ var_idx: u32,
-              head_tokens: [Token<'a>; 3],
-              end_token: Token<'a>,
-              body: Box<Expression<'a>> },
-    AssignExpr{ target_var_idx: u32,
-                source_var_idx: u32,
-                modifier: i64,
-                tokens: [Token<'a>; 5],},
-    SequenceExpr{ body: Vec<Expression<'a>>,
-                  seperator_tokens: Vec<Token<'a>> },
-}
-
-type ExpressionResult<'a> = Result<Expression<'a>, CompileError<'a>>;
-
-type PeekableTokenStream<'a> = Peekable<TokenStream<'a>>;
 
 impl<'a> Expression<'a> {
 
