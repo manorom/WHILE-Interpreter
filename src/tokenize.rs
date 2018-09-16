@@ -139,7 +139,8 @@ impl<'a> Iterator for TextTokenStream<'a> {
                     let mut local_it = self.it.clone();
                     let mut token_size = 0;
                     while local_it.next().map_or(false, |ch| match ch {
-                            ' ' | '\t' | '\n' | '!' | ':' | ';' => false,
+                            ' ' | '\t' | '\n' | '!' | ':' | ';' | '+' | '-' 
+                                => false,
                             _ => true }) {
                         self.it.next();
                         token_size += 1;
