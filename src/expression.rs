@@ -290,18 +290,16 @@ impl<'a> Expression<'a> {
     fn compile_single_expr(token_stream: &mut PeekableTokenStream<'a>)
             -> ExpressionResult<'a> {
 
-        let first_token_kind: TokenKind = {
+        let first_token: Token = {
             if let Some(res) = token_stream.peek() {
-                match res {
-                    Ok(Token{kind,..}) => Ok(kind.to_owned()),
-                    Err(e) => Err(CompileError::from(e.to_owned())),
-                }
+                res.to_owned()
+                   .map_err(CompileError::from)
             } else {
                 Err(CompileError::MissingToken)
             }
         }?;
 
-        match first_token_kind {
+        match first_token.kind {
             TokenKind::TWhile => {
                 Self::compile_while(token_stream)
             },
@@ -312,7 +310,7 @@ impl<'a> Expression<'a> {
                 Self::compile_assign(token_stream)
             },
             _ => {
-                panic!("Expected start token");
+                Err(CompileError::ExpectedExprToken(first_token))
             }
         }
     }
