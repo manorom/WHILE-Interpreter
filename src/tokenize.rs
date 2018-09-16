@@ -9,7 +9,7 @@ pub struct TextToken<'a> {
     col: usize
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     TWhile,
     TDo,

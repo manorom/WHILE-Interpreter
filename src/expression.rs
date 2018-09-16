@@ -37,6 +37,29 @@ type ExpressionResult<'a> = Result<Expression<'a>, CompileError<'a>>;
 
 type PeekableTokenStream<'a> = Peekable<TokenStream<'a>>;
 
+trait UnpackCheckToken<'a> {
+    fn unpack_expect_next_token(&mut self, expect: TokenKind)
+            -> Result<Token<'a>, CompileError<'a>>;
+}
+
+// sadly this only works smoothly with unit variants
+impl<'a> UnpackCheckToken<'a> for PeekableTokenStream<'a> {
+    fn unpack_expect_next_token(&mut self, expect: TokenKind)
+            -> Result<Token<'a>, CompileError<'a>> {
+        self.next()
+            .ok_or(CompileError::MissingToken)?
+            .map_err(CompileError::from)
+            .and_then(|tok| {
+                if tok.kind == expect {
+                    Ok(tok)
+                } else {
+                    Err(CompileError::UnexpectedToken{
+                        token: tok.clone(),
+                        expected: expect })
+                }
+            })
+    }
+}
 
 impl<'a> fmt::Display for CompileError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -97,28 +120,16 @@ impl<'a> Token<'a> { // Second impl
 }
 
 impl<'a> Expression<'a> {
-
     fn compile_assign(token_stream: &mut PeekableTokenStream<'a>)
             -> ExpressionResult<'a> {
-        // we already have the first token
         let target_var_token = token_stream.next()
                 .ok_or(CompileError::MissingToken)??;
         let target_var_idx = target_var_token.unpack_variable_token()?;
 
-        // the loop token
-        let assign_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TAssign = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token: tok.clone(),
-                        expected: TokenKind::TWhile
-                    })
-                }
-            })?;
+        // the assign token
+        let assign_token = token_stream.unpack_expect_next_token(
+            TokenKind::TAssign)?;
+
         let source_var_token = token_stream.next().ok_or(CompileError::MissingToken)??;
         let source_var_idx = source_var_token.unpack_variable_token()?;
 
@@ -147,38 +158,16 @@ impl<'a> Expression<'a> {
     fn compile_while(token_stream: &mut PeekableTokenStream<'a>)
             -> ExpressionResult<'a> {
         // the loop token
-        let while_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TWhile = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token: tok.clone(),
-                        expected: TokenKind::TWhile
-                    })
-                }
-            })?;
+        let while_token = token_stream.unpack_expect_next_token(
+            TokenKind::TWhile)?;
 
         // while variable token
         let while_var_token = token_stream.next().ok_or(CompileError::MissingToken)??;
         let while_var_idx = while_var_token.unpack_variable_token()?;
 
         // unequal token
-        let while_unequal_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TUnequal = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token: tok.clone(),
-                        expected: TokenKind::TUnequal
-                    })
-                }
-            })?;
+        let while_unequal_token = token_stream.unpack_expect_next_token(
+            TokenKind::TUnequal)?;
 
         // while comparator token
         let while_comparator_token = token_stream.next()
@@ -187,36 +176,13 @@ impl<'a> Expression<'a> {
             .unpack_integer_token()?;
 
         // the DO token
-        let while_do_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TDo = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token:tok.clone(),
-                        expected: TokenKind::TDo
-                    })
-                }
-            })?;
-
+        let while_do_token = token_stream.unpack_expect_next_token(
+            TokenKind::TDo)?;
         let while_body = Self::compile_possible_sequence(token_stream)?;
 
         // the END token
-        let while_end_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TEnd = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token:tok.clone(),
-                        expected: TokenKind::TEnd
-                    })
-                }
-            })?;
+        let while_end_token = token_stream.unpack_expect_next_token(
+            TokenKind::TEnd)?;
 
         Ok(Expression::WhileExpr{
             var_idx: while_var_idx,
@@ -232,19 +198,8 @@ impl<'a> Expression<'a> {
     fn compile_loop(token_stream: &mut PeekableTokenStream<'a>)
             -> ExpressionResult<'a> {
         //the loop token
-        let loop_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TLoop = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token: tok.clone(),
-                        expected: TokenKind::TLoop
-                    })
-                }
-            })?;
+        let loop_token = token_stream.unpack_expect_next_token(
+            TokenKind::TLoop)?;
 
         // the variable token
         let loop_var_token = token_stream.next()
@@ -252,36 +207,14 @@ impl<'a> Expression<'a> {
         let loop_var_idx = loop_var_token.unpack_variable_token()?;
 
         // the DO token
-        let loop_do_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TDo = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token:tok.clone(),
-                        expected: TokenKind::TDo
-                    })
-                }
-            })?;
+        let loop_do_token = token_stream.unpack_expect_next_token(
+            TokenKind::TDo)?;
 
         let loop_body =  Self::compile_possible_sequence(token_stream)?;
 
         // the END token
-        let loop_end_token = token_stream.next()
-            .ok_or(CompileError::MissingToken)?
-            .map_err(CompileError::from)
-            .and_then(|tok| {
-                if let TokenKind::TEnd = tok.kind {
-                    Ok(tok)
-                } else {
-                    Err(CompileError::UnexpectedToken{
-                        token:tok.clone(),
-                        expected: TokenKind::TEnd
-                    })
-                }
-            })?;
+        let loop_end_token = token_stream.unpack_expect_next_token(
+            TokenKind::TEnd)?;
 
         Ok(Expression::LoopExpr{
             var_idx: loop_var_idx,
