@@ -47,6 +47,30 @@ pub struct TokenStream<'a> {
     it: TextTokenStream<'a>
 }
 
+impl<'a> fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let token_text = match self {
+            TokenKind::TWhile => "WHILE".to_string(),
+            TokenKind::TDo => "DO".to_string(),
+            TokenKind::TLoop => "LOOP".to_string(),
+            TokenKind::TEnd => "END".to_string(),
+            TokenKind::TPlus => "+".to_string(),
+            TokenKind::TMinus => "-".to_string(),
+            TokenKind::TSemicolon => ";".to_string(),
+            TokenKind::TUnequal => "!=".to_string(),
+            TokenKind::TAssign => ":=".to_string(),
+            TokenKind::TVariable(idx) => format!("x{}", idx),
+            TokenKind::TInteger(i) => i.to_string(),
+        };
+        write!(f, "{}", token_text)
+    }
+}
+
+impl<'a> fmt::Display for Token<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} at line {}:{}", self.kind, self.source_text.line, self.source_text.col)
+    }
+}
 
 impl<'a> fmt::Display for TextToken<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -93,7 +117,6 @@ impl<'a> Iterator for TextTokenStream<'a> {
                                                line: self.cur_line_num,
                                                col: self.cur_col_num });
                     self.it.next();
-                    self.cur_line_num += 1;
                     self.cur_col_num += 1;
                     return ret;
                 },

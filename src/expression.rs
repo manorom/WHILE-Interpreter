@@ -20,14 +20,17 @@ impl<'a> fmt::Display for CompileError<'a> {
             CompileError::MissingToken => {
                 write!(f, "Stream ended abruptly. Missing at least one token")
             },
-            CompileError::ExpectedExprToken(_) => {
-                write!(f, "Expected the beginning of an expression")
+            CompileError::ExpectedExprToken(token) => {
+                write!(f, "Expected the beginning of an expression, found token {} instead", token)
             },
             CompileError::UnexpectedToken{ token, expected } => {
-                write!(f, "Unexpected Token")
+                write!(f, "Unexpected Token {}, expected token {}", token, expected)
             },
             CompileError::UnknownToken { tokenize_error } => {
-                write!(f, "Unrecognized Token")
+                match tokenize_error {
+                    TokenizeError::TokenNotRecognized(text_token) =>
+                        write!(f, "Unrecognized Token '{}'", text_token),
+                }
             }
         }
     }
@@ -306,7 +309,7 @@ impl<'a> Expression<'a> {
             TokenKind::TLoop => {
                 Self::compile_loop(token_stream)
             },
-            TokenKind::TVariable(idx) => {
+            TokenKind::TVariable(_) => {
                 Self::compile_assign(token_stream)
             },
             _ => {

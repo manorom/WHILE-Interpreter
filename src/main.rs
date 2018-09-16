@@ -1,11 +1,14 @@
 mod expression;
 mod tokenize;
 
-static Example: &'static str = "WHILE x1 != 0 DO x2 := x2 + 1; x1 := x1 - 1 END";
+static EXAMPLE: &'static str = "WHILE x1 != 0 DO x2 := x2 + 1; x1 := x1 - 1 END";
 
 fn main() {
-    let mut token_stream = tokenize::TokenStream::from_str(Example);
+    let token_stream = tokenize::TokenStream::from_str(EXAMPLE);
 //    let a: Vec<_> = token_stream.collect();
-    let a: expression::Expression = expression::Expression::compile_from_tokens(token_stream).unwrap();
-    println!("{:?}", a);
+    let a = expression::Expression::compile_from_tokens(token_stream);
+    match a {
+        Ok(expr) => println!("{:?}", expr),
+        Err(e) => println!("{}", e),
+    }
 }
