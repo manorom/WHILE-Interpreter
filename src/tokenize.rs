@@ -1,12 +1,12 @@
+use std::error::Error;
 use std::fmt;
 use std::str::Chars;
-use std::error::Error;
 
 #[derive(Debug, Clone)]
 pub struct TextToken<'a> {
     text: &'a str,
     line: usize,
-    col: usize
+    col: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,30 +21,30 @@ pub enum TokenKind {
     TUnequal,
     TAssign,
     TVariable(u32),
-    TInteger(i32)
+    TInteger(i32),
 }
 
 #[derive(Debug, Clone)]
 pub struct Token<'a> {
     pub kind: TokenKind,
-    source_text: TextToken<'a>
+    source_text: TextToken<'a>,
 }
 
 #[derive(Debug, Clone)]
 pub enum TokenizeError<'a> {
-    TokenNotRecognized(TextToken<'a>)
+    TokenNotRecognized(TextToken<'a>),
 }
 
 #[derive(Clone)]
 struct TextTokenStream<'a> {
     it: Chars<'a>,
     cur_line_num: usize,
-    cur_col_num: usize
+    cur_col_num: usize,
 }
 
 #[derive(Clone)]
 pub struct TokenStream<'a> {
-    it: TextTokenStream<'a>
+    it: TextTokenStream<'a>,
 }
 
 impl<'a> fmt::Display for TokenKind {
@@ -68,7 +68,11 @@ impl<'a> fmt::Display for TokenKind {
 
 impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} at line {}:{}", self.kind, self.source_text.line, self.source_text.col)
+        write!(
+            f,
+            "{} at line {}:{}",
+            self.kind, self.source_text.line, self.source_text.col
+        )
     }
 }
 
@@ -81,10 +85,11 @@ impl<'a> fmt::Display for TextToken<'a> {
 impl<'a> fmt::Display for TokenizeError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TokenizeError::TokenNotRecognized(text_token) => {
-                write!(f, "Unrecognized Token '{}' in line {}:{}",
-                       text_token.text, text_token.line, text_token.col)
-            }
+            TokenizeError::TokenNotRecognized(text_token) => write!(
+                f,
+                "Unrecognized Token '{}' in line {}:{}",
+                text_token.text, text_token.line, text_token.col
+            ),
         }
     }
 }
@@ -106,20 +111,22 @@ impl<'a> Iterator for TextTokenStream<'a> {
                 ' ' | '\t' => {
                     self.it.next();
                     self.cur_col_num += 1;
-                },
+                }
                 '\n' => {
                     self.it.next();
                     self.cur_col_num = 0;
                     self.cur_line_num += 1;
-                },
-                '+' | '-' | ';'  => {
-                    let ret = Some(TextToken { text: &s[..1],
-                                               line: self.cur_line_num,
-                                               col: self.cur_col_num });
+                }
+                '+' | '-' | ';' => {
+                    let ret = Some(TextToken {
+                        text: &s[..1],
+                        line: self.cur_line_num,
+                        col: self.cur_col_num,
+                    });
                     self.it.next();
                     self.cur_col_num += 1;
                     return ret;
-                },
+                }
                 '!' | ':' => {
                     self.it.next();
                     let mut token_size = 1;
@@ -129,26 +136,30 @@ impl<'a> Iterator for TextTokenStream<'a> {
                         token_size += 1;
                     }
 
-                    let ret = Some(TextToken { text: &s[..token_size],
-                                               line: self.cur_line_num,
-                                               col: self.cur_col_num });
+                    let ret = Some(TextToken {
+                        text: &s[..token_size],
+                        line: self.cur_line_num,
+                        col: self.cur_col_num,
+                    });
                     self.cur_col_num += token_size;
                     return ret;
-                },
+                }
                 _ => {
                     let mut local_it = self.it.clone();
                     let mut token_size = 0;
                     while local_it.next().map_or(false, |ch| match ch {
-                            ' ' | '\t' | '\n' | '!' | ':' | ';' | '+' | '-' 
-                                => false,
-                            _ => true }) {
+                        ' ' | '\t' | '\n' | '!' | ':' | ';' | '+' | '-' => false,
+                        _ => true,
+                    }) {
                         self.it.next();
                         token_size += 1;
                     }
 
-                    let ret = Some(TextToken { text: &s[..token_size],
-                                               line: self.cur_line_num,
-                                               col: self.cur_col_num });
+                    let ret = Some(TextToken {
+                        text: &s[..token_size],
+                        line: self.cur_line_num,
+                        col: self.cur_col_num,
+                    });
                     self.cur_col_num += token_size;
                     return ret;
                 }
@@ -159,61 +170,60 @@ impl<'a> Iterator for TextTokenStream<'a> {
 }
 
 impl<'a> TextTokenStream<'a> {
-    fn from_str(text: &'a str) -> TextTokenStream{
+    fn from_str(text: &'a str) -> TextTokenStream {
         TextTokenStream {
             it: text.chars(),
             cur_line_num: 1,
-            cur_col_num: 1
+            cur_col_num: 1,
         }
     }
 }
-
 
 impl<'a> Iterator for TokenStream<'a> {
     type Item = Result<Token<'a>, TokenizeError<'a>>;
 
     fn next(&mut self) -> Option<Result<Token<'a>, TokenizeError<'a>>> {
         self.it.next().and_then(|text_token| {
-            let kind_res: Result<TokenKind, TokenizeError<'a>>
-                = match text_token.text {
-                    "WHILE" => Ok(TokenKind::TWhile),
-                    "DO" => Ok(TokenKind::TDo),
-                    "LOOP" => Ok(TokenKind::TLoop),
-                    "END" => Ok(TokenKind::TEnd),
-                    "+" => Ok(TokenKind::TPlus),
-                    "-" => Ok(TokenKind::TMinus),
-                    ";" => Ok(TokenKind::TSemicolon),
-                    "!=" => Ok(TokenKind::TUnequal),
-                    ":=" => Ok(TokenKind::TAssign),
-                    text => {
-                        let mut ret = Err(TokenizeError::TokenNotRecognized(
-                                text_token.clone()));
-                        if let Ok(i) = text.parse::<i32>() {
-                            ret = Ok(TokenKind::TInteger(i))
-                        } else {
-                            let mut text_iter = text.chars();
-                            if text_iter.next() == Some('x') {
-                                if let Ok(i) = text_iter.as_str()
-                                                        .parse::<u32>() {
-                                    ret = Ok(TokenKind::TVariable(i))
-                                }
+            let kind_res: Result<TokenKind, TokenizeError<'a>> = match text_token.text {
+                "WHILE" => Ok(TokenKind::TWhile),
+                "DO" => Ok(TokenKind::TDo),
+                "LOOP" => Ok(TokenKind::TLoop),
+                "END" => Ok(TokenKind::TEnd),
+                "+" => Ok(TokenKind::TPlus),
+                "-" => Ok(TokenKind::TMinus),
+                ";" => Ok(TokenKind::TSemicolon),
+                "!=" => Ok(TokenKind::TUnequal),
+                ":=" => Ok(TokenKind::TAssign),
+                text => {
+                    let mut ret = Err(TokenizeError::TokenNotRecognized(text_token.clone()));
+                    if let Ok(i) = text.parse::<i32>() {
+                        ret = Ok(TokenKind::TInteger(i))
+                    } else {
+                        let mut text_iter = text.chars();
+                        if text_iter.next() == Some('x') {
+                            if let Ok(i) = text_iter.as_str().parse::<u32>() {
+                                ret = Ok(TokenKind::TVariable(i))
                             }
                         }
-                        ret
                     }
-                };
+                    ret
+                }
+            };
 
             Some(kind_res.and_then(|kind| {
-                    Ok(Token { kind,
-                               source_text: text_token })
-                }))
-
+                Ok(Token {
+                    kind,
+                    source_text: text_token,
+                })
+            }))
         })
     }
 }
 
 impl<'a> TokenStream<'a> {
     pub fn from_str(text: &'a str) -> TokenStream {
-        TokenStream { it: TextTokenStream::from_str(text) }
+        TokenStream {
+            it: TextTokenStream::from_str(text),
+        }
     }
 }
