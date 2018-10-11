@@ -312,10 +312,7 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    pub fn compile_from_tokens<I>(token_stream: I) -> ExpressionResult<'a>
-    where
-        I: Iterator<Item = Token<'a>>,
-    {
+    pub fn compile_from_tokens(token_stream: TokenStream<'a>) -> ExpressionResult<'a> {
         Self::compile_possible_sequence(&mut token_stream.peekable())
     }
 }

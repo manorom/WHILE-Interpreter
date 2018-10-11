@@ -3,7 +3,7 @@ use std::fmt;
 use std::str::Chars;
 
 #[derive(Debug, Clone)]
-pub struct TextToken<'a> {
+pub struct Lexeme<'a> {
     text: &'a str,
     line: usize,
     col: usize,
@@ -27,16 +27,16 @@ pub enum TokenKind {
 #[derive(Debug, Clone)]
 pub struct Token<'a> {
     pub kind: TokenKind,
-    source_text: TextToken<'a>,
+    source_text: Lexeme<'a>,
 }
 
 #[derive(Debug, Clone)]
 pub enum TokenizeError<'a> {
-    TokenNotRecognized(TextToken<'a>),
+    TokenNotRecognized(Lexeme<'a>),
 }
 
 #[derive(Clone)]
-struct TextTokenStream<'a> {
+struct LexemeStream<'a> {
     it: Chars<'a>,
     cur_line_num: usize,
     cur_col_num: usize,
@@ -44,7 +44,7 @@ struct TextTokenStream<'a> {
 
 #[derive(Clone)]
 pub struct TokenStream<'a> {
-    it: TextTokenStream<'a>,
+    it: LexemeStream<'a>,
 }
 
 impl<'a> fmt::Display for TokenKind {
@@ -76,7 +76,7 @@ impl<'a> fmt::Display for Token<'a> {
     }
 }
 
-impl<'a> fmt::Display for TextToken<'a> {
+impl<'a> fmt::Display for Lexeme<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "('{}' at {}:{})", self.text, self.line, self.col)
     }
@@ -100,10 +100,10 @@ impl<'a> Error for TokenizeError<'a> {
     }
 }
 
-impl<'a> Iterator for TextTokenStream<'a> {
-    type Item = TextToken<'a>;
+impl<'a> Iterator for LexemeStream<'a> {
+    type Item = Lexeme<'a>;
 
-    fn next(&mut self) -> Option<TextToken<'a>> {
+    fn next(&mut self) -> Option<Lexeme<'a>> {
         while let Some(ch) = self.it.clone().next() {
             // we need .as_str and thus cannot use peekable
             let s = self.it.as_str();
@@ -118,7 +118,7 @@ impl<'a> Iterator for TextTokenStream<'a> {
                     self.cur_line_num += 1;
                 }
                 '+' | '-' | ';' => {
-                    let ret = Some(TextToken {
+                    let ret = Some(Lexeme {
                         text: &s[..1],
                         line: self.cur_line_num,
                         col: self.cur_col_num,
@@ -136,7 +136,7 @@ impl<'a> Iterator for TextTokenStream<'a> {
                         token_size += 1;
                     }
 
-                    let ret = Some(TextToken {
+                    let ret = Some(Lexeme {
                         text: &s[..token_size],
                         line: self.cur_line_num,
                         col: self.cur_col_num,
@@ -155,7 +155,7 @@ impl<'a> Iterator for TextTokenStream<'a> {
                         token_size += 1;
                     }
 
-                    let ret = Some(TextToken {
+                    let ret = Some(Lexeme {
                         text: &s[..token_size],
                         line: self.cur_line_num,
                         col: self.cur_col_num,
@@ -169,9 +169,9 @@ impl<'a> Iterator for TextTokenStream<'a> {
     }
 }
 
-impl<'a> TextTokenStream<'a> {
-    fn from_str(text: &'a str) -> TextTokenStream {
-        TextTokenStream {
+impl<'a> LexemeStream<'a> {
+    fn from_str(text: &'a str) -> LexemeStream {
+        LexemeStream {
             it: text.chars(),
             cur_line_num: 1,
             cur_col_num: 1,
@@ -223,7 +223,7 @@ impl<'a> Iterator for TokenStream<'a> {
 impl<'a> TokenStream<'a> {
     pub fn from_str(text: &'a str) -> TokenStream {
         TokenStream {
-            it: TextTokenStream::from_str(text),
+            it: LexemeStream::from_str(text),
         }
     }
 }
