@@ -2,6 +2,12 @@ use std::error::Error;
 use std::fmt;
 use std::str::Chars;
 
+#[derive(Debug, Clone, Copy)]
+pub struct CodeLocation {
+    pub line: usize,
+    pub col: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct Lexeme<'a> {
     text: &'a str,
@@ -45,6 +51,15 @@ struct LexemeStream<'a> {
 #[derive(Clone)]
 pub struct TokenStream<'a> {
     it: LexemeStream<'a>,
+}
+
+impl<'a> Token<'a> {
+    pub fn code_location(&self) -> CodeLocation {
+        CodeLocation {
+            line: self.source_text.line,
+            col: self.source_text.col,
+        }
+    }
 }
 
 impl<'a> fmt::Display for TokenKind {
