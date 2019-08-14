@@ -103,6 +103,20 @@ impl<'a> UnpackCheckToken<'a> for PeekableTokenStream<'a> {
     }
 }
 
+impl<'a> Error for ParseError<'a> {
+    fn cause(&self) -> Option<&Error> {
+        None
+    }
+}
+
+impl<'a> From<TokenizeError<'a>> for ParseError<'a> {
+    fn from(error: TokenizeError<'a>) -> Self {
+        ParseError::UnknownToken {
+            tokenize_error: error,
+        }
+    }
+}
+
 impl<'a> fmt::Display for ParseError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -123,7 +137,7 @@ impl<'a> fmt::Display for ParseError<'a> {
                 } else {
                     write!(
                         f,
-                        "Unexpected Token {}. Did not expect any tokens here",
+                        "Unexpected Token {}. Did not expect any tokens here. Did you forget a semicolon?",
                         token
                     )
                 }
@@ -136,49 +150,6 @@ impl<'a> fmt::Display for ParseError<'a> {
             ParseError::UnexpectedIntegerComparator(token) => {
                 write!(f, "Expected a '0' as comparator in token {}", token)
             }
-        }
-    }
-}
-
-impl<'a> Error for ParseError<'a> {
-    fn cause(&self) -> Option<&Error> {
-        None
-    }
-}
-
-impl<'a> From<TokenizeError<'a>> for ParseError<'a> {
-    fn from(error: TokenizeError<'a>) -> Self {
-        ParseError::UnknownToken {
-            tokenize_error: error,
-        }
-    }
-}
-
-impl<'a> fmt::Display for Expression<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Expression::While(while_expr) => write!(
-                f,
-                "<while var_idx={}, comparator={}>(\n {}))",
-                while_expr.var_idx, while_expr.comparator, while_expr.body
-            ),
-            Expression::Loop(loop_expr) => write!(
-                f,
-                "<loop initial_var_idx={}>(\n {})",
-                loop_expr.var_idx, loop_expr.body
-            ),
-            Expression::Sequence(seq_expr) => {
-                write!(f, "<sequence>(")?;
-                for i in seq_expr.body.iter() {
-                    write!(f, "{}, ", i)?;
-                }
-                write!(f, ")")
-            }
-            Expression::Assign(assign_expr) => write!(
-                f,
-                "<assign target_idx={}, source_idx={}, modifier={}>\n",
-                assign_expr.target_var_idx, assign_expr.source_var_idx, assign_expr.modifier
-            ),
         }
     }
 }
@@ -383,5 +354,52 @@ impl<'a> Expression<'a> {
             });
         }
         return ret;
+    }
+
+    pub fn print_expression_tree(&self) {
+        let mut indent_stack = Vec::new();
+        self.print_expression_tree_with_indent(&mut indent_stack);
+    }
+
+    fn print_expression_tree_with_indent(&self, indent_stack: &mut Vec<bool>) {
+        if indent_stack.len() > 0 {
+            for i in &indent_stack[0..indent_stack.len() - 1] {
+                if  *i {
+                    print!("|   ")
+                } else {
+                    print!("    ")
+                }
+            }
+            print!("|-- ")
+        }
+
+        let expr_name = match self {
+            Expression::While(..) => "While",
+            Expression::Loop(..) => "Loop",
+            Expression::Assign(..) => "Assign",
+            Expression::Sequence(..) => "Sequence"
+        };
+        print!("{}\n", expr_name);
+
+        match self {
+            Expression::While(while_expr) => {
+                indent_stack.push(false);
+                while_expr.body.print_expression_tree_with_indent(indent_stack);
+                indent_stack.pop();
+            },
+            Expression::Loop(loop_expr) => {
+                indent_stack.push(false);
+                loop_expr.body.print_expression_tree_with_indent(indent_stack);
+                indent_stack.pop();
+            },
+            Expression::Sequence(ref seq_expr) => {
+                indent_stack.push(true);
+                for b in &seq_expr.body {
+                    b.print_expression_tree_with_indent(indent_stack);
+                }
+                indent_stack.pop();
+            },
+            _ => (),
+        }
     }
 }
