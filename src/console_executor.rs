@@ -1,4 +1,3 @@
-use tokenize;
 use expression;
 use walker_interpreter;
 
@@ -10,7 +9,7 @@ pub struct ConsoleExecutor<'a, 'b> {
 }
 
 impl<'a, 'b> ConsoleExecutor<'a, 'b> {
-    pub fn new_from_string(source_code: &'a str,  expr: &'b expression::Expression<'a>, max_num_steps: u32) -> ConsoleExecutor<'a, 'b> {
+    pub fn new_from_expr(source_code: &'a str,  expr: &'b expression::Expression<'a>, max_num_steps: u32) -> ConsoleExecutor<'a, 'b> {
         let source_code_lines = source_code.lines().collect();
         let interp = walker_interpreter::ExpressionWalkerInterpreter::new(expr);
 
@@ -32,6 +31,7 @@ impl<'a, 'b> ConsoleExecutor<'a, 'b> {
             self.display_current_line();
             self.num_steps += 1;
         }
+        self.print_environemnt();
     }
 
     pub fn display_current_line(&self) {
@@ -39,5 +39,13 @@ impl<'a, 'b> ConsoleExecutor<'a, 'b> {
         let line_string = code_location.line.to_string();
         println!("(L {}) {}", line_string, self.source_code_lines[code_location.line - 1]);
         println!("      {: <1$}^\n", "", line_string.len() + code_location.col - 1);
+    }
+
+    pub fn print_environemnt(&self) {
+        print!("[  ");
+        for (index, value) in self.interp.environ.vars_iter() {
+            print!("x{}={}  ", index, value);
+        }
+        println!("]");
     }
 }

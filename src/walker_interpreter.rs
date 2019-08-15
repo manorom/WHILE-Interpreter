@@ -29,6 +29,8 @@ enum ProgramStackElement<'a, 'b> {
     While(&'b WhileExpr<'a>),
     Sequence(&'b SequenceExpr<'a>, Peekable<Iter<'b, Expression<'a>>>),
     Assign(&'b AssignExpr<'a>),
+    WhileEndNoop(&'b WhileExpr<'a>),
+    LoopEndNoop(&'b LoopExpr<'a>)
 }
 
 impl<'a, 'b> Evaluability for ProgramStackElement<'a, 'b> {
@@ -57,7 +59,7 @@ impl<'a, 'b> From<&'b Expression<'a>> for ProgramStackElement<'a, 'b> {
 
 pub struct ExpressionWalkerInterpreter<'a, 'b> {
     program_stack: Vec<ProgramStackElement<'a, 'b>>,
-    environ: Environment,
+    pub environ: Environment,
 }
 
 impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
@@ -90,15 +92,19 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
     }
 
     fn backtrack(&mut self) {
-        if let Some(elem) = self.program_stack.last() {
+        if let Some(elem) = self.program_stack.pop() {
             match elem {
-                ProgramStackElement::Loop(_, _) => self.environ.decrement_counter_register_level(),
-                ProgramStackElement::While(_) => self.environ.decrement_comp_register_level(),
+                ProgramStackElement::Loop(loop_expr, _) => {
+                    self.environ.decrement_counter_register_level();
+                    self.program_stack.push(ProgramStackElement::LoopEndNoop(loop_expr));
+                },
+                ProgramStackElement::While(while_expr) => {
+                    self.program_stack.push(ProgramStackElement::WhileEndNoop(while_expr));
+                    self.environ.decrement_comp_register_level();
+                },
                 _ => (),
             }
         }
-
-        self.program_stack.pop();
     }
 
     fn eval(&mut self) -> Option<()> {
@@ -112,7 +118,7 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
                     let old_loop_val = self.environ.get_current_counter_register();
                     self.environ.set_current_counter_register(old_loop_val - 1);
                 }
-            }
+            },
             ProgramStackElement::While(ref while_expr) => {
                 let while_var_value = self.environ.load_var(while_expr.var_idx);
                 if while_var_value != 0 {
@@ -120,17 +126,18 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
                 } else {
                     self.environ.set_current_comp_register(false);
                 }
-            }
+            },
             ProgramStackElement::Sequence(_, _) => {
                 panic!("Trying to evaluate a Sequence Expression");
-            }
+            },
             ProgramStackElement::Assign(ref assign_expr) => {
                 let source_var_value = self.environ.load_var(assign_expr.source_var_idx);
                 let modifier = assign_expr.modifier;
                 let target_var_value = source_var_value + modifier;
                 self.environ
                     .store_var(assign_expr.target_var_idx, target_var_value);
-            }
+            },
+            _ => (),
         };
         Some(())
     }
@@ -145,21 +152,22 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
                     } else {
                         None
                     }
-                }
+                },
                 ProgramStackElement::While(while_expr) => {
                     if self.environ.get_current_comp_register() {
                         Some(&*while_expr.body)
                     } else {
                         None
                     }
-                }
+                },
                 ProgramStackElement::Loop(loop_expr, _) => {
                     if self.environ.get_current_counter_register() != 0 {
                         Some(&*loop_expr.body)
                     } else {
                         None
                     }
-                }
+                },
+                _ => None,
             };
 
             if let Some(next_expr) = next_possible_expr {
@@ -191,6 +199,8 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
             ProgramStackElement::While(while_expr) => while_expr.code_location(),
             ProgramStackElement::Loop(loop_expr, _) => loop_expr.code_location(),
             ProgramStackElement::Assign(assign_expr) => assign_expr.code_location(),
+            ProgramStackElement::WhileEndNoop(while_expr) => while_expr.code_location_end(),
+            ProgramStackElement::LoopEndNoop(loop_expr) => loop_expr.code_location_end(),
             _ => panic!("Sequence Expression does not have a source location"),
         };
         Some(ret)

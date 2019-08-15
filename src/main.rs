@@ -4,18 +4,34 @@ mod environment;
 mod walker_interpreter;
 mod console_executor;
 
-static EXAMPLE: &'static str =
-"x1 := x1 + 1;
- x1 := x1 + 1;
- WHILE x1 != 0 DO 
-    x2:=x2+1;
-    x1:=x1-1 
- END;
- x1 := x1 - 1";
+use std::fs;
+
+extern crate clap;
+
+use clap::Arg;
+
 
 fn main() {
-    println!("Source Code:\n{}\n\n", EXAMPLE);
-    let expr = expression::Expression::compile_from_tokens(tokenize::TokenStream::from_str(EXAMPLE)).unwrap();
-    let mut executor = console_executor::ConsoleExecutor::new_from_string(EXAMPLE, &expr, 1000);
-    executor.run();
+    let matches = clap::App::new("A WHILE program interpeter")
+                    .about("Interprets and executes a WHILE program")
+                    .arg(Arg::with_name("INPUT")
+                            .help("Text file containing the WHILE program")
+                            .required(true)
+                            .index(1))
+                    .get_matches();
+    
+    let filename = matches.value_of("INPUT").unwrap();
+
+    println!("Reading source in: {} ...", filename);
+    let source_code = fs::read_to_string(filename).expect("Could not read input file");
+
+    println!("Parsing source code...");
+    let parse_result = expression::Expression::compile_from_tokens(tokenize::TokenStream::from_str(&source_code));
+    match parse_result {
+        Err(parse_error) => println!("Could not parse source code\n{}", parse_error),
+        Ok(expr) => {
+            console_executor::ConsoleExecutor::new_from_expr(&source_code, &expr, 100).run();
+
+        }
+    }
 }

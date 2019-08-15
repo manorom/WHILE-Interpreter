@@ -32,6 +32,10 @@ impl<'a> WhileExpr<'a> {
     pub fn code_location(&self) -> CodeLocation {
         self.head_tokens[0].code_location()
     }
+
+    pub fn code_location_end(&self) -> CodeLocation {
+        self.end_token.code_location()
+    }
 }
 
 #[derive(Debug)]
@@ -45,6 +49,10 @@ pub struct LoopExpr<'a> {
 impl<'a> LoopExpr<'a> {
     pub fn code_location(&self) -> CodeLocation {
         self.head_tokens[0].code_location()
+    }
+
+    pub fn code_location_end(&self) -> CodeLocation {
+        self.end_token.code_location()
     }
 }
 

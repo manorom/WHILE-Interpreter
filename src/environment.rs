@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Iter;
 
 pub struct Environment {
     pub variables: HashMap<u32, i32>,
@@ -57,5 +58,9 @@ impl Environment {
 
     pub fn store_var(&mut self, i: u32, val: i32) {
         self.variables.insert(i, val);
+    }
+
+    pub fn vars_iter(&self) -> Iter<u32, i32> {
+        self.variables.iter()
     }
 }
