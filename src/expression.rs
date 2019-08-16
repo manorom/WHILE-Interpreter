@@ -111,12 +111,6 @@ impl<'a> UnpackCheckToken<'a> for PeekableTokenStream<'a> {
     }
 }
 
-impl<'a> Error for ParseError<'a> {
-    fn cause(&self) -> Option<&Error> {
-        None
-    }
-}
-
 impl<'a> From<TokenizeError<'a>> for ParseError<'a> {
     fn from(error: TokenizeError<'a>) -> Self {
         ParseError::UnknownToken {
@@ -141,11 +135,11 @@ impl<'a> fmt::Display for ParseError<'a> {
                 ref expected,
             } => {
                 if let Some(exp) = expected {
-                    write!(f, "Unexpected Token {}, expected token {}", token, exp)
+                    write!(f, "Unexpected Token '{}', expected token '{}'", token, exp)
                 } else {
                     write!(
                         f,
-                        "Unexpected Token {}. Did not expect any tokens here. Did you forget a semicolon?",
+                        "Unexpected Token '{}'. Did not expect any tokens here. Did you forget a semicolon?",
                         token
                     )
                 }
@@ -188,6 +182,16 @@ impl<'a> Token<'a> {
 }
 
 impl<'a> Expression<'a> {
+    fn is_operator_token(possible_token: Option<&Result<Token<'a>, TokenizeError<'a>>>) -> bool {
+        if let Some(Ok(token)) = possible_token {
+            match token.kind {
+                TokenKind::TPlus | TokenKind::TMinus => return true,
+                _ => return false,
+            }
+        }
+        false
+    }
+
     fn compile_assign(token_stream: &mut PeekableTokenStream<'a>) -> ExpressionResult<'a> {
         let target_var_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let target_var_idx = target_var_token.unpack_variable_token()?;
@@ -198,6 +202,7 @@ impl<'a> Expression<'a> {
         let source_var_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let source_var_idx = source_var_token.unpack_variable_token()?;
 
+        // First operator token i.e. + or -
         let operator_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let operator_factor: i32 = {
             match operator_token.kind {
@@ -210,10 +215,26 @@ impl<'a> Expression<'a> {
             }
         }?;
 
+        // some versions of while specification would allow two operator tokens
+        // (if the assignment constant is allowd to be signed)
+        let mut second_operator_factor = 1;
+        if Self::is_operator_token(token_stream.peek()) {
+            let second_operator_token = token_stream.next().ok_or(ParseError::MissingToken)??;
+            second_operator_factor = match second_operator_token.kind {
+                TokenKind::TPlus => Ok(1),
+                TokenKind::TMinus => Ok(-1),
+                _ => Err(ParseError::UnexpectedToken {
+                    token: second_operator_token.clone(),
+                    expected: Some(TokenKind::TPlus),
+                })
+            }?;
+        }
+
+
         let modifier_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let modifier_value = modifier_token.unpack_integer_token()?;
 
-        let modifier = modifier_value as i32 * operator_factor as i32;
+        let modifier = modifier_value as i32 * operator_factor as i32 * second_operator_factor as i32;
         Ok(Expression::Assign(AssignExpr {
             target_var_idx,
             source_var_idx,
@@ -338,6 +359,17 @@ impl<'a> Expression<'a> {
             // read the token, it should be safe to unwrap here
             let sep = token_stream.next().unwrap().unwrap();
 
+            /*if token_stream.peek().map_or(false, |rt| {
+                if let Ok(token) = rt {
+                    if let TokenKind::TEnd = token.kind {
+                        return true;
+                    }
+                }
+                false
+            }) {
+                break;
+            }*/
+
             // another expression must follow a semicolon. Could add a
             // non-strict, where and END token or nothing could follow
             let additional_expr = Self::compile_single_expr(token_stream)?;
@@ -354,14 +386,14 @@ impl<'a> Expression<'a> {
 
     pub fn compile_from_tokens(token_stream: TokenStream<'a>) -> ExpressionResult<'a> {
         let mut peekable_token_stream = token_stream.peekable();
-        let ret = Self::compile_possible_sequence(&mut peekable_token_stream);
+        let ret = Self::compile_possible_sequence(&mut peekable_token_stream)?;
         if let Some(res) = peekable_token_stream.next() {
             return Err(ParseError::UnexpectedToken {
                 token: res?,
                 expected: None,
             });
         }
-        return ret;
+        return Ok(ret);
     }
 
     pub fn print_expression_tree(&self) {
