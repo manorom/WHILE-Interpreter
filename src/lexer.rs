@@ -1,16 +1,54 @@
 use interpreter_settings::InterpreterSettings;
+use std::error::Error;
 use std::fmt;
 use token::{CodeLocation, Token, TokenKind};
 
 #[derive(Debug, Clone)]
-pub enum LexerError<'a> {
+pub enum LexerError {
     TokenUnrecognized {
         code_location: CodeLocation,
-        fragment: &'a str,
+        fragment: String,
     },
+/*    ExpectedNewlineAfterDo {
+        code_location: CodeLocation,
+        fragment: String
+    }*/
 }
 
-impl<'a> fmt::Display for LexerError<'a> {
+impl LexerError {
+    fn set_code_location(&mut self, new_code_location: CodeLocation) {
+        match self {
+            LexerError::TokenUnrecognized {
+                ref mut code_location,
+                ..
+            } => {
+                *code_location = new_code_location;
+            }
+        }
+    }
+
+    fn token_unrecognized(fragment: String) -> LexerError {
+        LexerError::TokenUnrecognized {
+            code_location: CodeLocation::default(),
+            fragment,
+        }
+    }
+
+    /*fn expected_newline_after_do(fragment: String) -> LexerError {
+        LexerError:ExpectedNewlineAfterDo {
+            code_location: CodeLocation::default(),
+            fragment,
+        }
+    }*/
+}
+
+impl Error for LexerError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+impl fmt::Display for LexerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LexerError::TokenUnrecognized {
@@ -21,6 +59,14 @@ impl<'a> fmt::Display for LexerError<'a> {
                 "Could not recognize fragment \"{}\" as token in line {}",
                 fragment, code_location
             ),
+            /*LexerError::ExpectedNewlineAfterDo {
+                code_location,
+                fragment,
+            } => write!(
+                f,
+                "Expected a newline after 'DO' keyword in line {}: \"{}\"",
+                code_location, fragment
+            ),*/
         }
     }
 }
@@ -82,18 +128,18 @@ impl<'a> Iterator for CodeLocationIterator<'a> {
 
 pub struct Lexer<'a> {
     iter: CodeLocationIterator<'a>,
-    settings: InterpreterSettings,
+    settings: &'a InterpreterSettings,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(input_str: &'a str, settings: InterpreterSettings) -> Lexer<'a> {
+    pub fn new(input_str: &'a str, settings: &'a InterpreterSettings) -> Lexer<'a> {
         Lexer {
             iter: CodeLocationIterator::new(input_str),
             settings,
         }
     }
 
-    fn try_lex_keyword(&mut self, keyword: &str, kind: TokenKind) -> Result<TokenKind, &'a str> {
+    fn try_lex_keyword(&mut self, keyword: &str, kind: TokenKind) -> Result<TokenKind, LexerError> {
         let s = self.iter.as_str();
 
         if let Some(subslice) = s.get(..keyword.len()) {
@@ -116,7 +162,7 @@ impl<'a> Lexer<'a> {
         Err(self.lex_unknown_fragment(s, 0))
     }
 
-    fn try_lex_unsigned_int(&mut self) -> Result<TokenKind, &'a str> {
+    fn try_lex_unsigned_int(&mut self) -> Result<TokenKind, LexerError> {
         let s = self.iter.as_str();
         let mut num_of_digits = 0;
 
@@ -129,7 +175,8 @@ impl<'a> Lexer<'a> {
         return Ok(TokenKind::TInteger(unsigned_int));
     }
 
-    fn try_lex_variable(&mut self) -> Result<TokenKind, &'a str> {
+    // TODO: Error handling for the case that num_of_lexed_chars == 0
+    fn try_lex_variable(&mut self) -> Result<TokenKind, LexerError> {
         let s = self.iter.as_str();
         let mut num_of_lexed_chars = 1;
         // we already know that the first char is an 'x'
@@ -153,7 +200,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn lex_unknown_fragment(&mut self, lex_str: &'a str, initial_lex_len: usize) -> &'a str {
+    fn lex_unknown_fragment(&mut self, lex_str: &'a str, initial_lex_len: usize) -> LexerError {
         let mut num_of_lexed_chars = initial_lex_len;
         while self
             .iter
@@ -164,7 +211,7 @@ impl<'a> Lexer<'a> {
             num_of_lexed_chars += 1;
         }
 
-        return &lex_str[..num_of_lexed_chars];
+        return LexerError::token_unrecognized(lex_str[..num_of_lexed_chars].to_owned());
     }
 
     fn try_lex_additional_char(
@@ -172,7 +219,7 @@ impl<'a> Lexer<'a> {
         additional_char: char,
         target_token_kind: TokenKind,
         input_str: &'a str,
-    ) -> Result<TokenKind, &'a str> {
+    ) -> Result<TokenKind, LexerError> {
         self.iter.next();
         if Some(additional_char) == self.iter.peek() {
             self.iter.next();
@@ -181,12 +228,12 @@ impl<'a> Lexer<'a> {
         return Err(self.lex_unknown_fragment(input_str, 1));
     }
 
-    fn lex(&mut self) -> Option<Result<Token<'a>, LexerError<'a>>> {
+    fn lex(&mut self) -> Option<Result<Token<'a>, LexerError>> {
         while let Some(character) = self.iter.peek() {
             let token_code_location = self.iter.current_location.clone();
             let s = self.iter.as_str();
 
-            let possible_next_token_kind: Option<Result<TokenKind, &'a str>> = match character {
+            let possible_next_token_kind: Option<Result<TokenKind, LexerError>> = match character {
                 ' ' | '\t' | '\n' => {
                     self.iter.next();
                     None
@@ -214,18 +261,19 @@ impl<'a> Lexer<'a> {
                 _ => Some(Err(self.lex_unknown_fragment(s, 0))),
             };
 
-            if let Some(next_token_kind) = possible_next_token_kind {
+            if let Some(mut next_token_kind) = possible_next_token_kind {
                 let token_len = self.iter.current_location.col - token_code_location.col;
-                return Some(next_token_kind
-                    .map(|kind| Token {
-                        kind: kind,
-                        source_text: &s[..token_len],
-                        code_location: token_code_location,
-                    })
-                    .map_err(|fragment| LexerError::TokenUnrecognized {
-                        code_location: token_code_location,
-                        fragment,
-                    }));
+
+                // set the code location in case of an error
+                if let Err(ref mut lexer_error) = next_token_kind {
+                    lexer_error.set_code_location(token_code_location);
+                }
+
+                return Some(next_token_kind.map(|kind| Token {
+                    kind: kind,
+                    source_text: &s[..token_len],
+                    code_location: token_code_location,
+                }));
             }
         }
         None
@@ -233,9 +281,9 @@ impl<'a> Lexer<'a> {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Result<Token<'a>, LexerError<'a>>;
+    type Item = Result<Token<'a>, LexerError>;
 
-    fn next(&mut self) -> Option<Result<Token<'a>, LexerError<'a>>> {
+    fn next(&mut self) -> Option<Result<Token<'a>, LexerError>> {
         self.lex()
     }
 }
