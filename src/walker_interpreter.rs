@@ -4,7 +4,7 @@ use std::slice::Iter;
 
 use environment::Environment;
 use expression::{AssignExpr, Expression, LoopExpr, SequenceExpr, WhileExpr};
-use tokenize::CodeLocation;
+use token::CodeLocation;
 
 trait Evaluability {
     fn is_evaluable(&self) -> bool;

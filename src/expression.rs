@@ -1,9 +1,10 @@
 use std::boxed::Box;
 use std::convert::From;
-use std::error::Error;
+//use std::error::Error;
 use std::fmt;
 use std::iter::Peekable;
-use tokenize::{CodeLocation, Token, TokenKind, TokenStream, TokenizeError};
+use token::{Token, TokenKind, CodeLocation};
+use lexer::{Lexer, LexerError};
 
 #[derive(Debug)]
 pub enum ParseError<'a> {
@@ -14,7 +15,7 @@ pub enum ParseError<'a> {
         expected: Option<TokenKind>,
     },
     UnknownToken {
-        tokenize_error: TokenizeError<'a>,
+        lexer_error: LexerError<'a>,
     },
     UnexpectedIntegerComparator(Token<'a>),
 }
@@ -86,14 +87,14 @@ pub enum Expression<'a> {
 
 type ExpressionResult<'a> = Result<Expression<'a>, ParseError<'a>>;
 
-type PeekableTokenStream<'a> = Peekable<TokenStream<'a>>;
+type PeekableLexer<'a> = Peekable<Lexer<'a>>;
 
 trait UnpackCheckToken<'a> {
     fn unpack_expect_next_token(&mut self, expect: TokenKind) -> Result<Token<'a>, ParseError<'a>>;
 }
 
 // sadly this only works smoothly with unit variants
-impl<'a> UnpackCheckToken<'a> for PeekableTokenStream<'a> {
+impl<'a> UnpackCheckToken<'a> for PeekableLexer<'a> {
     fn unpack_expect_next_token(&mut self, expect: TokenKind) -> Result<Token<'a>, ParseError<'a>> {
         self.next()
             .ok_or(ParseError::MissingToken)?
@@ -111,10 +112,10 @@ impl<'a> UnpackCheckToken<'a> for PeekableTokenStream<'a> {
     }
 }
 
-impl<'a> From<TokenizeError<'a>> for ParseError<'a> {
-    fn from(error: TokenizeError<'a>) -> Self {
+impl<'a> From<LexerError<'a>> for ParseError<'a> {
+    fn from(error: LexerError<'a>) -> Self {
         ParseError::UnknownToken {
-            tokenize_error: error,
+            lexer_error: error,
         }
     }
 }
@@ -144,10 +145,8 @@ impl<'a> fmt::Display for ParseError<'a> {
                     )
                 }
             }
-            ParseError::UnknownToken { tokenize_error } => match tokenize_error {
-                TokenizeError::TokenNotRecognized(text_token) => {
-                    write!(f, "Unrecognized Token '{}'", text_token)
-                }
+            ParseError::UnknownToken { lexer_error } => {
+                write!(f, "{}", lexer_error)
             },
             ParseError::UnexpectedIntegerComparator(token) => {
                 write!(f, "Expected a '0' as comparator in token {}", token)
@@ -169,7 +168,7 @@ impl<'a> Token<'a> {
         }
     }
 
-    fn unpack_integer_token(&self) -> Result<i32, ParseError<'a>> {
+    fn unpack_integer_token(&self) -> Result<u32, ParseError<'a>> {
         if let TokenKind::TInteger(idx) = self.kind {
             Ok(idx)
         } else {
@@ -182,7 +181,7 @@ impl<'a> Token<'a> {
 }
 
 impl<'a> Expression<'a> {
-    fn is_operator_token(possible_token: Option<&Result<Token<'a>, TokenizeError<'a>>>) -> bool {
+    fn is_operator_token(possible_token: Option<&Result<Token<'a>, LexerError<'a>>>) -> bool {
         if let Some(Ok(token)) = possible_token {
             match token.kind {
                 TokenKind::TPlus | TokenKind::TMinus => return true,
@@ -192,7 +191,7 @@ impl<'a> Expression<'a> {
         false
     }
 
-    fn compile_assign(token_stream: &mut PeekableTokenStream<'a>) -> ExpressionResult<'a> {
+    fn compile_assign(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
         let target_var_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let target_var_idx = target_var_token.unpack_variable_token()?;
 
@@ -249,7 +248,7 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    fn compile_while(token_stream: &mut PeekableTokenStream<'a>) -> ExpressionResult<'a> {
+    fn compile_while(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
         // the loop token
         let while_token = token_stream.unpack_expect_next_token(TokenKind::TWhile)?;
 
@@ -262,7 +261,7 @@ impl<'a> Expression<'a> {
 
         // while comparator token
         let while_comparator_token = token_stream.next().ok_or(ParseError::MissingToken)??;
-        let while_comparator_value = while_comparator_token.unpack_integer_token()?;
+        let while_comparator_value = while_comparator_token.unpack_integer_token()? as i32;
         if while_comparator_value != 0 {
             return Err(ParseError::UnexpectedIntegerComparator(
                 while_comparator_token,
@@ -291,7 +290,7 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    fn compile_loop(token_stream: &mut PeekableTokenStream<'a>) -> ExpressionResult<'a> {
+    fn compile_loop(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
         //the loop token
         let loop_token = token_stream.unpack_expect_next_token(TokenKind::TLoop)?;
 
@@ -315,7 +314,7 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    fn compile_single_expr(token_stream: &mut PeekableTokenStream<'a>) -> ExpressionResult<'a> {
+    fn compile_single_expr(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
         let first_token: Token = {
             if let Some(res) = token_stream.peek() {
                 res.to_owned().map_err(ParseError::from)
@@ -332,7 +331,7 @@ impl<'a> Expression<'a> {
         }
     }
 
-    fn is_semicolon_token(possible_token: Option<&Result<Token<'a>, TokenizeError<'a>>>) -> bool {
+    fn is_semicolon_token(possible_token: Option<&Result<Token<'a>, LexerError<'a>>>) -> bool {
         if let Some(Ok(token)) = possible_token {
             if let TokenKind::TSemicolon = token.kind {
                 return true;
@@ -342,7 +341,7 @@ impl<'a> Expression<'a> {
     }
 
     fn compile_possible_sequence(
-        token_stream: &mut PeekableTokenStream<'a>,
+        token_stream: &mut PeekableLexer<'a>,
     ) -> ExpressionResult<'a> {
         let first_expression = Self::compile_single_expr(token_stream)?;
 
@@ -384,7 +383,7 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    pub fn compile_from_tokens(token_stream: TokenStream<'a>) -> ExpressionResult<'a> {
+    pub fn compile_from_tokens(token_stream: Lexer<'a>) -> ExpressionResult<'a> {
         let mut peekable_token_stream = token_stream.peekable();
         let ret = Self::compile_possible_sequence(&mut peekable_token_stream)?;
         if let Some(res) = peekable_token_stream.next() {
