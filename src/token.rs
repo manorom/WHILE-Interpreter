@@ -6,6 +6,15 @@ pub struct CodeLocation {
     pub col: usize,
 }
 
+impl Default for CodeLocation {
+    fn default() -> CodeLocation {
+        CodeLocation {
+            line: 0,
+            col: 0,
+        }
+    }
+}
+
 impl fmt::Display for CodeLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.col)
@@ -57,10 +66,10 @@ impl fmt::Display for TokenKind {
             TokenKind::TAssign => {
                  write!(f, "TAssign")
             },
-            TokenKind::TVariable(idx) => {
+            TokenKind::TVariable(_) => {
                 write!(f, "TVariable")
             },
-            TokenKind::TInteger(val) => {
+            TokenKind::TInteger(_) => {
                 write!(f, "TInteger")
             }
         }

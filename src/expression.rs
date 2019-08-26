@@ -1,6 +1,6 @@
 use std::boxed::Box;
 use std::convert::From;
-//use std::error::Error;
+use std::error::Error;
 use std::fmt;
 use std::iter::Peekable;
 use token::{Token, TokenKind, CodeLocation};
@@ -15,7 +15,7 @@ pub enum ParseError<'a> {
         expected: Option<TokenKind>,
     },
     UnknownToken {
-        lexer_error: LexerError<'a>,
+        lexer_error: LexerError,
     },
     UnexpectedIntegerComparator(Token<'a>),
 }
@@ -112,10 +112,19 @@ impl<'a> UnpackCheckToken<'a> for PeekableLexer<'a> {
     }
 }
 
-impl<'a> From<LexerError<'a>> for ParseError<'a> {
-    fn from(error: LexerError<'a>) -> Self {
+impl<'a> From<LexerError> for ParseError<'a> {
+    fn from(error: LexerError) -> Self {
         ParseError::UnknownToken {
             lexer_error: error,
+        }
+    }
+}
+
+impl<'a> Error for ParseError<'a> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ParseError::UnknownToken { ref lexer_error } => Some(lexer_error),
+            _ => None,
         }
     }
 }
@@ -181,7 +190,7 @@ impl<'a> Token<'a> {
 }
 
 impl<'a> Expression<'a> {
-    fn is_operator_token(possible_token: Option<&Result<Token<'a>, LexerError<'a>>>) -> bool {
+    fn is_operator_token(possible_token: Option<&Result<Token<'a>, LexerError>>) -> bool {
         if let Some(Ok(token)) = possible_token {
             match token.kind {
                 TokenKind::TPlus | TokenKind::TMinus => return true,
@@ -331,7 +340,7 @@ impl<'a> Expression<'a> {
         }
     }
 
-    fn is_semicolon_token(possible_token: Option<&Result<Token<'a>, LexerError<'a>>>) -> bool {
+    fn is_semicolon_token(possible_token: Option<&Result<Token<'a>, LexerError>>) -> bool {
         if let Some(Ok(token)) = possible_token {
             if let TokenKind::TSemicolon = token.kind {
                 return true;
