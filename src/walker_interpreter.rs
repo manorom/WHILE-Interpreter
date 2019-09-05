@@ -30,7 +30,7 @@ enum ProgramStackElement<'a, 'b> {
     Sequence(&'b SequenceExpr<'a>, Peekable<Iter<'b, Expression<'a>>>),
     Assign(&'b AssignExpr<'a>),
     WhileEndNoop(&'b WhileExpr<'a>),
-    LoopEndNoop(&'b LoopExpr<'a>)
+    LoopEndNoop(&'b LoopExpr<'a>),
 }
 
 impl<'a, 'b> Evaluability for ProgramStackElement<'a, 'b> {
@@ -96,12 +96,14 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
             match elem {
                 ProgramStackElement::Loop(loop_expr, _) => {
                     self.environ.decrement_counter_register_level();
-                    self.program_stack.push(ProgramStackElement::LoopEndNoop(loop_expr));
-                },
+                    self.program_stack
+                        .push(ProgramStackElement::LoopEndNoop(loop_expr));
+                }
                 ProgramStackElement::While(while_expr) => {
-                    self.program_stack.push(ProgramStackElement::WhileEndNoop(while_expr));
+                    self.program_stack
+                        .push(ProgramStackElement::WhileEndNoop(while_expr));
                     self.environ.decrement_comp_register_level();
-                },
+                }
                 _ => (),
             }
         }
@@ -118,7 +120,7 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
                     let old_loop_val = self.environ.get_current_counter_register();
                     self.environ.set_current_counter_register(old_loop_val - 1);
                 }
-            },
+            }
             ProgramStackElement::While(ref while_expr) => {
                 let while_var_value = self.environ.load_var(while_expr.var_idx);
                 if while_var_value != 0 {
@@ -126,17 +128,17 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
                 } else {
                     self.environ.set_current_comp_register(false);
                 }
-            },
+            }
             ProgramStackElement::Sequence(_, _) => {
                 panic!("Trying to evaluate a Sequence Expression");
-            },
+            }
             ProgramStackElement::Assign(ref assign_expr) => {
                 let source_var_value = self.environ.load_var(assign_expr.source_var_idx);
                 let modifier = assign_expr.modifier;
                 let target_var_value = source_var_value + modifier;
                 self.environ
                     .store_var(assign_expr.target_var_idx, target_var_value);
-            },
+            }
             _ => (),
         };
         Some(())
@@ -152,21 +154,21 @@ impl<'a, 'b> ExpressionWalkerInterpreter<'a, 'b> {
                     } else {
                         None
                     }
-                },
+                }
                 ProgramStackElement::While(while_expr) => {
                     if self.environ.get_current_comp_register() {
                         Some(&*while_expr.body)
                     } else {
                         None
                     }
-                },
+                }
                 ProgramStackElement::Loop(loop_expr, _) => {
                     if self.environ.get_current_counter_register() != 0 {
                         Some(&*loop_expr.body)
                     } else {
                         None
                     }
-                },
+                }
                 _ => None,
             };
 

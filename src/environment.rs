@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::hash_map::Iter;
+use std::collections::HashMap;
 
 pub struct Environment {
     pub variables: HashMap<u32, i32>,

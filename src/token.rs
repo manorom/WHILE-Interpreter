@@ -8,10 +8,7 @@ pub struct CodeLocation {
 
 impl Default for CodeLocation {
     fn default() -> CodeLocation {
-        CodeLocation {
-            line: 0,
-            col: 0,
-        }
+        CodeLocation { line: 0, col: 0 }
     }
 }
 
@@ -38,40 +35,18 @@ pub enum TokenKind {
 
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self{
-            TokenKind::TWhile => {
-                write!(f, "TWhile")
-            },
-            TokenKind::TDo => {
-                write!(f, "TDo")
-            },
-            TokenKind::TLoop => {
-                 write!(f, "TLoop")
-            },
-            TokenKind::TEnd => {
-                 write!(f, "TEnd")
-            },
-            TokenKind::TPlus => {
-                 write!(f, "TPlus")
-            },
-            TokenKind::TMinus => {
-                 write!(f, "TMinus")
-            },
-            TokenKind::TSemicolon => {
-                 write!(f, "TSemicolon")
-            },
-            TokenKind::TUnequal => {
-                 write!(f, "TUnequal")
-            },
-            TokenKind::TAssign => {
-                 write!(f, "TAssign")
-            },
-            TokenKind::TVariable(_) => {
-                write!(f, "TVariable")
-            },
-            TokenKind::TInteger(_) => {
-                write!(f, "TInteger")
-            }
+        match self {
+            TokenKind::TWhile => write!(f, "WHILE"),
+            TokenKind::TDo => write!(f, "DO"),
+            TokenKind::TLoop => write!(f, "LOOP"),
+            TokenKind::TEnd => write!(f, "END"),
+            TokenKind::TPlus => write!(f, "+"),
+            TokenKind::TMinus => write!(f, "-"),
+            TokenKind::TSemicolon => write!(f, ";"),
+            TokenKind::TUnequal => write!(f, "!="),
+            TokenKind::TAssign => write!(f, ":="),
+            TokenKind::TVariable(_) => write!(f, "Variable"),
+            TokenKind::TInteger(_) => write!(f, "Integer"),
         }
     }
 }
@@ -93,14 +68,12 @@ impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             TokenKind::TVariable(idx) => {
-                write!(f, "TVariable[{}, idx:{}]", self.code_location, idx)
-            },
-            TokenKind::TInteger(val) => {
-                write!(f, "TInteger[{}, val:{}]", self.code_location, val)
-            },
-            k => {
-                write!(f, "{}[{}]", k, self.code_location)
+                write!(f, "[Variable 'x{}' at {}]", idx, self.code_location)
             }
+            TokenKind::TInteger(val) => {
+                write!(f, "[Integer with value {} at {}]", val, self.code_location)
+            }
+            k => write!(f, "['{}' at {}]", k, self.code_location),
         }
     }
 }

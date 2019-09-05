@@ -1,4 +1,4 @@
-use interpreter_settings::InterpreterSettings;
+use settings::Settings;
 use std::error::Error;
 use std::fmt;
 use token::{CodeLocation, Token, TokenKind};
@@ -9,10 +9,6 @@ pub enum LexerError {
         code_location: CodeLocation,
         fragment: String,
     },
-/*    ExpectedNewlineAfterDo {
-        code_location: CodeLocation,
-        fragment: String
-    }*/
 }
 
 impl LexerError {
@@ -33,13 +29,6 @@ impl LexerError {
             fragment,
         }
     }
-
-    /*fn expected_newline_after_do(fragment: String) -> LexerError {
-        LexerError:ExpectedNewlineAfterDo {
-            code_location: CodeLocation::default(),
-            fragment,
-        }
-    }*/
 }
 
 impl Error for LexerError {
@@ -59,14 +48,6 @@ impl fmt::Display for LexerError {
                 "Could not recognize fragment \"{}\" as token in line {}",
                 fragment, code_location
             ),
-            /*LexerError::ExpectedNewlineAfterDo {
-                code_location,
-                fragment,
-            } => write!(
-                f,
-                "Expected a newline after 'DO' keyword in line {}: \"{}\"",
-                code_location, fragment
-            ),*/
         }
     }
 }
@@ -128,11 +109,11 @@ impl<'a> Iterator for CodeLocationIterator<'a> {
 
 pub struct Lexer<'a> {
     iter: CodeLocationIterator<'a>,
-    settings: &'a InterpreterSettings,
+    settings: &'a Settings,
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(input_str: &'a str, settings: &'a InterpreterSettings) -> Lexer<'a> {
+    pub fn new(input_str: &'a str, settings: &'a Settings) -> Lexer<'a> {
         Lexer {
             iter: CodeLocationIterator::new(input_str),
             settings,
@@ -187,6 +168,10 @@ impl<'a> Lexer<'a> {
             num_of_lexed_chars += 1;
         }
 
+        if num_of_lexed_chars == 1 {
+            return Err(lex_unknown_fragment(s, 1));
+        }
+
         let var_index = s[1..num_of_lexed_chars].parse::<u32>().unwrap();
         return Ok(TokenKind::TVariable(var_index));
     }
@@ -234,8 +219,18 @@ impl<'a> Lexer<'a> {
             let s = self.iter.as_str();
 
             let possible_next_token_kind: Option<Result<TokenKind, LexerError>> = match character {
-                ' ' | '\t' | '\n' => {
+                r if r.is_whitespace() => {
                     self.iter.next();
+                    None
+                }
+                '\t' | '\n' => {
+                    self.iter.next();
+                    None
+                }
+                '#' => {
+                    while self.iter.peek().map_or(false, |c| c != '\n') {
+                        self.iter.next();
+                    }
                     None
                 }
                 '+' => {

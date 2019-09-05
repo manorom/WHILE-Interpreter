@@ -1,10 +1,11 @@
+use lexer::{Lexer, LexerError};
+use settings::Settings;
 use std::boxed::Box;
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
 use std::iter::Peekable;
-use token::{Token, TokenKind, CodeLocation};
-use lexer::{Lexer, LexerError};
+use token::{CodeLocation, Token, TokenKind};
 
 #[derive(Debug)]
 pub enum ParseError<'a> {
@@ -18,6 +19,7 @@ pub enum ParseError<'a> {
         lexer_error: LexerError,
     },
     UnexpectedIntegerComparator(Token<'a>),
+    UnexpectedIntegerModifier(Token<'a>),
 }
 
 #[derive(Debug)]
@@ -114,9 +116,7 @@ impl<'a> UnpackCheckToken<'a> for PeekableLexer<'a> {
 
 impl<'a> From<LexerError> for ParseError<'a> {
     fn from(error: LexerError) -> Self {
-        ParseError::UnknownToken {
-            lexer_error: error,
-        }
+        ParseError::UnknownToken { lexer_error: error }
     }
 }
 
@@ -154,11 +154,12 @@ impl<'a> fmt::Display for ParseError<'a> {
                     )
                 }
             }
-            ParseError::UnknownToken { lexer_error } => {
-                write!(f, "{}", lexer_error)
-            },
+            ParseError::UnknownToken { lexer_error } => write!(f, "{}", lexer_error),
             ParseError::UnexpectedIntegerComparator(token) => {
                 write!(f, "Expected a '0' as comparator in token {}", token)
+            }
+            ParseError::UnexpectedIntegerModifier(token) => {
+                write!(f, "Expected a value of -1, 0 or 1 in {}", token)
             }
         }
     }
@@ -200,7 +201,10 @@ impl<'a> Expression<'a> {
         false
     }
 
-    fn compile_assign(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
+    fn compile_assign(
+        token_stream: &mut PeekableLexer<'a>,
+        settings: &Settings,
+    ) -> ExpressionResult<'a> {
         let target_var_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let target_var_idx = target_var_token.unpack_variable_token()?;
 
@@ -234,15 +238,21 @@ impl<'a> Expression<'a> {
                 _ => Err(ParseError::UnexpectedToken {
                     token: second_operator_token.clone(),
                     expected: Some(TokenKind::TPlus),
-                })
+                }),
             }?;
         }
-
 
         let modifier_token = token_stream.next().ok_or(ParseError::MissingToken)??;
         let modifier_value = modifier_token.unpack_integer_token()?;
 
-        let modifier = modifier_value as i32 * operator_factor as i32 * second_operator_factor as i32;
+        if !settings.allow_arbitrary_constants_assign
+            && !(modifier_value == 1 || modifier_value == 0)
+        {
+            return Err(ParseError::UnexpectedIntegerModifier(modifier_token));
+        }
+
+        let modifier =
+            modifier_value as i32 * operator_factor as i32 * second_operator_factor as i32;
         Ok(Expression::Assign(AssignExpr {
             target_var_idx,
             source_var_idx,
@@ -257,7 +267,10 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    fn compile_while(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
+    fn compile_while(
+        token_stream: &mut PeekableLexer<'a>,
+        settings: &Settings,
+    ) -> ExpressionResult<'a> {
         // the loop token
         let while_token = token_stream.unpack_expect_next_token(TokenKind::TWhile)?;
 
@@ -279,7 +292,7 @@ impl<'a> Expression<'a> {
 
         // the DO token
         let while_do_token = token_stream.unpack_expect_next_token(TokenKind::TDo)?;
-        let while_body = Self::compile_possible_sequence(token_stream)?;
+        let while_body = Self::compile_possible_sequence(token_stream, settings)?;
 
         // the END token
         let while_end_token = token_stream.unpack_expect_next_token(TokenKind::TEnd)?;
@@ -299,7 +312,10 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    fn compile_loop(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
+    fn compile_loop(
+        token_stream: &mut PeekableLexer<'a>,
+        settings: &Settings,
+    ) -> ExpressionResult<'a> {
         //the loop token
         let loop_token = token_stream.unpack_expect_next_token(TokenKind::TLoop)?;
 
@@ -310,7 +326,7 @@ impl<'a> Expression<'a> {
         // the DO token
         let loop_do_token = token_stream.unpack_expect_next_token(TokenKind::TDo)?;
 
-        let loop_body = Self::compile_possible_sequence(token_stream)?;
+        let loop_body = Self::compile_possible_sequence(token_stream, settings)?;
 
         // the END token
         let loop_end_token = token_stream.unpack_expect_next_token(TokenKind::TEnd)?;
@@ -323,7 +339,10 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    fn compile_single_expr(token_stream: &mut PeekableLexer<'a>) -> ExpressionResult<'a> {
+    fn compile_single_expr(
+        token_stream: &mut PeekableLexer<'a>,
+        settings: &Settings,
+    ) -> ExpressionResult<'a> {
         let first_token: Token = {
             if let Some(res) = token_stream.peek() {
                 res.to_owned().map_err(ParseError::from)
@@ -333,9 +352,9 @@ impl<'a> Expression<'a> {
         }?;
 
         match first_token.kind {
-            TokenKind::TWhile => Self::compile_while(token_stream),
-            TokenKind::TLoop => Self::compile_loop(token_stream),
-            TokenKind::TVariable(_) => Self::compile_assign(token_stream),
+            TokenKind::TWhile => Self::compile_while(token_stream, settings),
+            TokenKind::TLoop => Self::compile_loop(token_stream, settings),
+            TokenKind::TVariable(_) => Self::compile_assign(token_stream, settings),
             _ => Err(ParseError::ExpectedExprToken(first_token)),
         }
     }
@@ -351,8 +370,9 @@ impl<'a> Expression<'a> {
 
     fn compile_possible_sequence(
         token_stream: &mut PeekableLexer<'a>,
+        settings: &Settings,
     ) -> ExpressionResult<'a> {
-        let first_expression = Self::compile_single_expr(token_stream)?;
+        let first_expression = Self::compile_single_expr(token_stream, settings)?;
 
         if !Self::is_semicolon_token(token_stream.peek()) {
             return Ok(first_expression);
@@ -380,7 +400,7 @@ impl<'a> Expression<'a> {
 
             // another expression must follow a semicolon. Could add a
             // non-strict, where and END token or nothing could follow
-            let additional_expr = Self::compile_single_expr(token_stream)?;
+            let additional_expr = Self::compile_single_expr(token_stream, settings)?;
 
             seq_separators.push(sep);
             seq_body.push(additional_expr);
@@ -392,9 +412,12 @@ impl<'a> Expression<'a> {
         }))
     }
 
-    pub fn compile_from_tokens(token_stream: Lexer<'a>) -> ExpressionResult<'a> {
+    pub fn compile_from_tokens(
+        token_stream: Lexer<'a>,
+        settings: &Settings,
+    ) -> ExpressionResult<'a> {
         let mut peekable_token_stream = token_stream.peekable();
-        let ret = Self::compile_possible_sequence(&mut peekable_token_stream)?;
+        let ret = Self::compile_possible_sequence(&mut peekable_token_stream, settings)?;
         if let Some(res) = peekable_token_stream.next() {
             return Err(ParseError::UnexpectedToken {
                 token: res?,
@@ -412,7 +435,7 @@ impl<'a> Expression<'a> {
     fn print_expression_tree_with_indent(&self, indent_stack: &mut Vec<bool>) {
         if indent_stack.len() > 0 {
             for i in &indent_stack[0..indent_stack.len() - 1] {
-                if  *i {
+                if *i {
                     print!("|   ")
                 } else {
                     print!("    ")
@@ -425,28 +448,32 @@ impl<'a> Expression<'a> {
             Expression::While(..) => "While",
             Expression::Loop(..) => "Loop",
             Expression::Assign(..) => "Assign",
-            Expression::Sequence(..) => "Sequence"
+            Expression::Sequence(..) => "Sequence",
         };
         print!("{}\n", expr_name);
 
         match self {
             Expression::While(while_expr) => {
                 indent_stack.push(false);
-                while_expr.body.print_expression_tree_with_indent(indent_stack);
+                while_expr
+                    .body
+                    .print_expression_tree_with_indent(indent_stack);
                 indent_stack.pop();
-            },
+            }
             Expression::Loop(loop_expr) => {
                 indent_stack.push(false);
-                loop_expr.body.print_expression_tree_with_indent(indent_stack);
+                loop_expr
+                    .body
+                    .print_expression_tree_with_indent(indent_stack);
                 indent_stack.pop();
-            },
+            }
             Expression::Sequence(ref seq_expr) => {
                 indent_stack.push(true);
                 for b in &seq_expr.body {
                     b.print_expression_tree_with_indent(indent_stack);
                 }
                 indent_stack.pop();
-            },
+            }
             _ => (),
         }
     }
