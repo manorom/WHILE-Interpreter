@@ -1,4 +1,5 @@
-x1 := x1 + 1;
+# this is a comment test
+x1 := x1 + 2;
 x1 := x1 + 1;
 WHILE x1 != 0 DO 
    x2:=x2+1;
