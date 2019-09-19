@@ -1,5 +1,5 @@
 [package]
-name = "while-rs"
+name = "WHILE_interpreter"
 version = "0.1.0"
 authors = ["manorom"]
 
