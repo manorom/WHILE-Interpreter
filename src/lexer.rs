@@ -169,7 +169,7 @@ impl<'a> Lexer<'a> {
         }
 
         if num_of_lexed_chars == 1 {
-            return Err(lex_unknown_fragment(s, 1));
+            return Err(self.lex_unknown_fragment(s, 1));
         }
 
         let var_index = s[1..num_of_lexed_chars].parse::<u32>().unwrap();

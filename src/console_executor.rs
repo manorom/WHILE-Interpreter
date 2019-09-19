@@ -30,11 +30,13 @@ impl<'a, 'b> ConsoleExecutor<'a, 'b> {
         while self.interp.step().is_some() {
             if self.num_steps >= self.max_num_steps {
                 println!("Aborted after {} steps", self.num_steps);
+                self.print_environemnt();
                 return;
             }
             self.display_current_line();
             self.num_steps += 1;
         }
+        println!("Program terminated after {} steps", self.num_steps);
         self.print_environemnt();
     }
 
@@ -54,10 +56,9 @@ impl<'a, 'b> ConsoleExecutor<'a, 'b> {
     }
 
     pub fn print_environemnt(&self) {
-        print!("[  ");
+        println!("Variables Now: ");
         for (index, value) in self.interp.environ.vars_iter() {
-            print!("x{}={}  ", index, value);
+            println!("    x{} = {}", index, value);
         }
-        println!("]");
     }
 }
