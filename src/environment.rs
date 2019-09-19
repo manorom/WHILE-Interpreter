@@ -24,10 +24,6 @@ impl Environment {
         self.counter_registers.push(value);
     }
 
-    pub fn counter_register_level(&self) -> usize {
-        self.counter_registers.len()
-    }
-
     pub fn get_current_counter_register(&self) -> u32 {
         *self.counter_registers.last().unwrap()
     }
