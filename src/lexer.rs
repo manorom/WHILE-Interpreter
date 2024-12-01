@@ -1,7 +1,7 @@
-use settings::Settings;
+use crate::settings::Settings;
+use crate::token::{CodeLocation, Token, TokenKind};
 use std::error::Error;
 use std::fmt;
-use token::{CodeLocation, Token, TokenKind};
 
 #[derive(Debug, Clone)]
 pub enum LexerError {

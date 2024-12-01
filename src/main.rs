@@ -1,16 +1,15 @@
-mod expression;
+mod ast;
 mod console_executor;
 mod environment;
+mod expression;
 mod lexer;
 mod settings;
 mod token;
 mod walker_interpreter;
-
-use std::fs;
-
-extern crate clap;
+mod interpreter;
 
 use clap::Arg;
+use std::fs;
 
 fn main() {
     let matches = clap::App::new("A WHILE program interpeter")

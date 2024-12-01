@@ -1,5 +1,5 @@
-use expression;
-use walker_interpreter;
+use crate::expression;
+use crate::walker_interpreter;
 
 pub struct ConsoleExecutor<'a, 'b> {
     interp: walker_interpreter::ExpressionWalkerInterpreter<'a, 'b>,

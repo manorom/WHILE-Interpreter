@@ -62,6 +62,15 @@ impl<'a> Token<'a> {
     pub fn code_location(&self) -> CodeLocation {
         self.code_location
     }
+    pub fn is_semicolon(&self) -> bool {
+        self.kind == TokenKind::TSemicolon
+    }
+    pub fn is_operator_token(&self) -> bool {
+        match self.kind {
+            TokenKind::TPlus | TokenKind::TMinus => true,
+            _ => false,
+        }
+    }
 }
 
 impl<'a> fmt::Display for Token<'a> {

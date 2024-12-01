@@ -2,9 +2,9 @@ use std::convert::From;
 use std::iter::Peekable;
 use std::slice::Iter;
 
-use environment::Environment;
-use expression::{AssignExpr, Expression, LoopExpr, SequenceExpr, WhileExpr};
-use token::CodeLocation;
+use crate::environment::Environment;
+use crate::expression::{AssignExpr, Expression, LoopExpr, SequenceExpr, WhileExpr};
+use crate::token::CodeLocation;
 
 trait Evaluability {
     fn is_evaluable(&self) -> bool;

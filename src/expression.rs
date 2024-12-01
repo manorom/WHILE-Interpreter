@@ -1,11 +1,11 @@
-use lexer::{Lexer, LexerError};
-use settings::Settings;
+use crate::lexer::{Lexer, LexerError};
+use crate::settings::Settings;
+use crate::token::{CodeLocation, Token, TokenKind};
 use std::boxed::Box;
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
 use std::iter::Peekable;
-use token::{CodeLocation, Token, TokenKind};
 
 #[derive(Debug)]
 pub enum ParseError<'a> {
