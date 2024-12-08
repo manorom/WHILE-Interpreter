@@ -1,14 +1,11 @@
 mod ast;
-mod console_executor;
-mod environment;
-mod expression;
+mod interpreter;
 mod lexer;
 mod settings;
 mod token;
-mod walker_interpreter;
-mod interpreter;
 
 use clap::Arg;
+use interpreter::Interpreter;
 use std::fs;
 
 fn main() {
@@ -55,15 +52,33 @@ fn main() {
         println!("\n")
     }
 
+    let my_lexer = lexer::Lexer::new(&source_code, &settings);
+
+    let lines = source_code.lines().collect::<Vec<&str>>();
+
     println!("Parsing source code...");
-    let parse_result = expression::Expression::compile_from_tokens(
-        lexer::Lexer::new(&source_code, &settings),
-        &settings,
-    );
-    match parse_result {
-        Err(parse_error) => println!("Could not parse source code\n{}", parse_error),
-        Ok(expr) => {
-            console_executor::ConsoleExecutor::new_from_expr(&source_code, &expr, 100).run();
+
+    let my_ast = match ast::parse_program(my_lexer, settings.clone()) {
+        Ok(my_ast) => my_ast,
+        Err(e) => {
+            eprintln!("Could not parse source code: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    my_ast.print();
+    println!("");
+
+    let mut interpreter = Interpreter::new(&my_ast);
+
+    loop {
+        if let Some(cur_line) = interpreter.current_line() {
+            println!("(L{cur_line}) {}", lines[cur_line -1 ]);
+        }
+        let stepped = interpreter.step();
+        if !stepped {
+            break;
         }
     }
+
 }

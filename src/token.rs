@@ -59,9 +59,6 @@ pub struct Token<'a> {
 }
 
 impl<'a> Token<'a> {
-    pub fn code_location(&self) -> CodeLocation {
-        self.code_location
-    }
     pub fn is_semicolon(&self) -> bool {
         self.kind == TokenKind::TSemicolon
     }
